@@ -1,0 +1,7 @@
+indus$ java -cp /u/mkshah/Documents/ nlp.lm.BidirectionalBigramModel /projects/nlp/penn-treebank3/tagged/pos/brown/ 0.1
+# Train Sentences = 47207 (# words = 1079440)
+# Test Sentences = 5245 (# words = 93530)
+Training...
+Word Perplexity = 52.676453862979415
+Testing...
+Word Perplexity = 174.53578684983646

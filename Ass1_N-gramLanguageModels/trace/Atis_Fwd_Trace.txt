@@ -1,0 +1,9 @@
+indus$ java -cp /u/mkshah/Documents/ nlp.lm.BigramModel /projects/nlp/penn-treebank3/tagged/pos/atis/ 0.1
+# Train Sentences = 519 (# words = 3922)
+# Test Sentences = 58 (# words = 431)
+Training...
+Perplexity = 9.043192013019798
+Word Perplexity = 10.5919539986291
+Testing...
+Perplexity = 19.341388622483773
+Word Perplexity = 24.053999598153656
