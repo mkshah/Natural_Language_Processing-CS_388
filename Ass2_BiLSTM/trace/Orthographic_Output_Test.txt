@@ -1,0 +1,3 @@
+Test Accuracy: 0.945
+Test Loss: 0.193
+Test OOV Accuracy: 0.608
