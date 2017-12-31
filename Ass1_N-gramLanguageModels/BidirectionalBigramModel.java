@@ -9,7 +9,7 @@ import java.util.*;
  * with a unigram model for smoothing.
 */
 
-public class BigramModel {
+public class BidirectionalBigramModel {
 
     /** Unigram model that maps a token to its unigram probability */
     public Map<String, DoubleValue> unigramMap = null; 
@@ -17,7 +17,8 @@ public class BigramModel {
     /**  Bigram model that maps a bigram as a string "A\nB" to the
      *   P(B | A) */
     public Map<String, DoubleValue> bigramMap = null;
-
+    public Map<String, DoubleValue> bigramMap1 = null;
+    
     /** Total count of tokens in training data */
     public double tokenCount = 0;
 
@@ -26,13 +27,16 @@ public class BigramModel {
 
     /** Interpolation weight for bigram model */
     public double lambda2 = 0.9;
+    
+    public double lambda3 = 0.5;
 
     /** Initialize model with empty hashmaps with initial
      *  unigram entries for setence start (<S>), sentence end (</S>)
      *  and unknown tokens */
-    public BigramModel() {
+    public BidirectionalBigramModel() {
 	unigramMap = new HashMap<String, DoubleValue>();
 	bigramMap = new HashMap<String, DoubleValue>();
+	bigramMap1 = new HashMap<String, DoubleValue>();
 	unigramMap.put("<S>", new DoubleValue());
 	unigramMap.put("</S>", new DoubleValue());
 	unigramMap.put("<UNK>", new DoubleValue());
@@ -51,6 +55,11 @@ public class BigramModel {
     public void trainSentences (List<List<String>> sentences) {
 	for (List<String> sentence : sentences) {
 	    trainSentence(sentence);
+	}
+	for (List<String> sentence : sentences) {
+		Collections.reverse(sentence);
+	    trainSentence1(sentence);
+	    Collections.reverse(sentence);
 	}
     }
 
@@ -103,6 +112,56 @@ public class BigramModel {
 	bigramValue.increment();
     }
 
+    
+    public void trainSentence1(List<String> sentence) {
+    	// First count an initial start sentence token
+    	String prevToken = "</S>";
+    	DoubleValue unigramValue = unigramMap.get("</S>");
+    	//unigramValue.increment();
+    	//tokenCount++;
+    	// For each token in sentence, accumulate a unigram and bigram count
+    	for (String token : sentence) {
+    	    unigramValue = unigramMap.get(token);
+    	    // If this is the first time token is seen then count it
+    	    // as an unkown token (<UNK>) to handle out-of-vocabulary 
+    	    // items in testing
+    	    //if (unigramValue == null) {
+    		// Store token in unigram map with 0 count to indicate that
+    		// token has been seen but not counted
+    		//unigramMap.put(token, new DoubleValue());
+    		//token = "<UNK>";
+    		//unigramValue = unigramMap.get(token);
+    	    //}
+    	    //unigramValue.increment();    // Count unigram
+    	    //tokenCount++;               // Count token
+    	    // Make bigram string 
+    	    String bigram = bigram(prevToken, token);
+    	    DoubleValue bigramValue = bigramMap1.get(bigram);
+    	    if (bigramValue == null) {
+    		// If previously unseen bigram, then
+    		// initialize it with a value
+    		bigramValue = new DoubleValue();
+    		bigramMap1.put(bigram, bigramValue);
+    	    }
+    	    // Count bigram
+    	    bigramValue.increment();
+    	    prevToken = token;
+    	}
+    	// Account for start of sentence unigram
+    	//unigramValue = unigramMap.get("<S>");
+    	//unigramValue.increment();
+    	//tokenCount++;
+    	// Account for start of sentence bigram
+    	String bigram = bigram(prevToken, "<S>");
+    	DoubleValue bigramValue = bigramMap1.get(bigram);
+    	if (bigramValue == null) {
+    	    bigramValue = new DoubleValue();
+    	    bigramMap1.put(bigram, bigramValue);
+    	}
+    	bigramValue.increment();
+        }
+    
+    
     /** Compute unigram and bigram probabilities from unigram and bigram counts */
     public void calculateProbs() {
 	// Set bigram values to conditional probability of second token given first
@@ -118,6 +177,20 @@ public class BigramModel {
 	    // Set map value to conditional probability 
 	    value.setValue(condProb);
 	}
+	
+	for (Map.Entry<String, DoubleValue> entry : bigramMap1.entrySet()) {
+	    // An entry in the HashMap maps a token to a DoubleValue
+	    String bigram = entry.getKey();
+	    // The value for the token is in the value of the DoubleValue
+	    DoubleValue value = entry.getValue();
+	    double bigramCount = value.getValue();
+	    String token1 = bigramToken1(bigram); // Get first token of bigram
+	    // Prob is ratio of bigram count to token1 unigram count
+	    double condProb = bigramCount / unigramMap.get(token1).getValue();
+	    // Set map value to conditional probability 
+	    value.setValue(condProb);
+	}
+	
 	// Store unigrams with zero count to remove from map
 	List<String> zeroTokens = new ArrayList<String>();
 	// Set unigram values to unigram probability
@@ -252,8 +325,14 @@ public class BigramModel {
     
     /** Like sentenceLogProb but excludes predicting end-of-sentence when computing prob */
     public double sentenceLogProb2 (List<String> sentence) {
-	String prevToken = "<S>";
-	double sentenceLogProb = 0;
+	
+    int n =	sentence.size();
+    double[] pf = new double[n];
+    double[] pb = new double[n];
+    int cnt = 0;
+    
+    String prevToken = "<S>";	
+	//double sentenceLogProbF = 0;
 	for (String token : sentence) {
 	    DoubleValue unigramVal = unigramMap.get(token);
 	    if (unigramVal == null) {
@@ -262,10 +341,39 @@ public class BigramModel {
 	    }
 	    String bigram = bigram(prevToken, token);
 	    DoubleValue bigramVal = bigramMap.get(bigram);
-	    double logProb = Math.log(interpolatedProb(unigramVal, bigramVal));
-	    sentenceLogProb += logProb;
+	    pf[cnt] = interpolatedProb(unigramVal, bigramVal);
+	    cnt++;
+	    //double logProb = Math.log(interpolatedProb(unigramVal, bigramVal));
+	    //sentenceLogProbF += logProb;
 	    prevToken = token;
 	}
+	
+	cnt--;
+	Collections.reverse(sentence);
+	String prevToken1 = "</S>";	
+	//double sentenceLogProbB = 0;
+	for (String token : sentence) {
+	    DoubleValue unigramVal = unigramMap.get(token);
+	    if (unigramVal == null) {
+		token = "<UNK>";
+		unigramVal = unigramMap.get(token);
+	    }
+	    String bigram = bigram(prevToken1, token);
+	    DoubleValue bigramVal = bigramMap1.get(bigram);
+	    pb[cnt] = interpolatedProb(unigramVal, bigramVal);
+	    cnt--;
+	    //double logProb = Math.log(interpolatedProb(unigramVal, bigramVal));
+	    //sentenceLogProbB += logProb;
+	    prevToken1 = token;
+	}
+	Collections.reverse(sentence);
+	double sentenceLogProb = 0;
+	for(int i=0;i<n;i++)
+	{
+		double avg = Math.log((lambda3*pf[i])+((1-lambda3)*pb[i]));
+		sentenceLogProb += avg;
+	}
+	
 	return sentenceLogProb;
     }
 
@@ -349,15 +457,13 @@ public class BigramModel {
 			   ") \n# Test Sentences = " + testSentences.size() +
 			   " (# words = " + wordCount(testSentences) + ")");
 	// Create a bigram model and train it.
-	BigramModel model = new BigramModel();
+	BidirectionalBigramModel model = new BidirectionalBigramModel();
 	System.out.println("Training...");
 	model.train(trainSentences);
-	// Test on training data using test and test2
-	model.test(trainSentences);
+	// Test on training data using test2
 	model.test2(trainSentences);
 	System.out.println("Testing...");
-	// Test on test data using test and test2
-	model.test(testSentences);
+	// Test on test data using test2
 	model.test2(testSentences);
     }
 
